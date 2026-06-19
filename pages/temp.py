@@ -13,39 +13,52 @@ st.title("🌡️ 서울 기후 타임머신")
 # CSV 읽기
 
 try:
-df = pd.read_csv("ta_20260619190504.csv", encoding="utf-8")
-except:
 df = pd.read_csv("ta_20260619190504.csv", encoding="cp949")
+except Exception:
+df = pd.read_csv("ta_20260619190504.csv", encoding="utf-8")
 
-# 컬럼명 확인
-
-st.subheader("원본 컬럼")
+st.write("컬럼명 확인:")
 st.write(df.columns.tolist())
 
-# 컬럼이 5개라고 가정
+# 날짜 컬럼 자동 찾기
 
-df.columns = [
-"date",
-"station",
-"avg_temp",
-"min_temp",
-"max_temp"
-]
+date_col = df.columns[0]
 
-df["date"] = pd.to_datetime(df["date"])
+df[date_col] = pd.to_datetime(df[date_col])
 
-df["year"] = df["date"].dt.year
-df["month"] = df["date"].dt.month
-df["day"] = df["date"].dt.day
+df["year"] = df[date_col].dt.year
+df["month"] = df[date_col].dt.month
+df["day"] = df[date_col].dt.day
+
+# 숫자 컬럼 찾기
+
+numeric_cols = []
+
+for col in df.columns:
+try:
+pd.to_numeric(df[col])
+numeric_cols.append(col)
+except Exception:
+pass
+
+st.write("숫자 컬럼:", numeric_cols)
+
+if len(numeric_cols) == 0:
+st.error("숫자형 기온 컬럼을 찾을 수 없습니다.")
+st.stop()
+
+temp_col = numeric_cols[0]
+
+df[temp_col] = pd.to_numeric(df[temp_col], errors="coerce")
 
 st.success("데이터 로드 성공")
 
 st.metric("총 데이터 수", len(df))
 
-# 연평균 기온
+# 연도별 평균
 
 yearly = (
-df.groupby("year")["avg_temp"]
+df.groupby("year")[temp_col]
 .mean()
 .reset_index()
 )
@@ -53,16 +66,16 @@ df.groupby("year")["avg_temp"]
 fig = px.line(
 yearly,
 x="year",
-y="avg_temp",
-title="서울 연평균 기온 변화"
+y=temp_col,
+title="서울 기온 변화"
 )
 
 st.plotly_chart(fig, use_container_width=True)
 
-# 날짜 선택
+st.subheader("특정 날짜 비교")
 
-month = st.selectbox("월", range(1, 13))
-day = st.selectbox("일", range(1, 32))
+month = st.selectbox("월", list(range(1, 13)))
+day = st.selectbox("일", list(range(1, 32)))
 
 filtered = df[
 (df["month"] == month)
@@ -70,19 +83,20 @@ filtered = df[
 ]
 
 if len(filtered) > 0:
-fig2 = px.line(
-filtered,
-x="year",
-y="avg_temp",
-title=f"{month}월 {day}일 기온 변화"
-)
 
+```
+fig2 = px.line(
+    filtered,
+    x="year",
+    y=temp_col,
+    title=f"{month}월 {day}일 기온 변화"
+)
 
 st.plotly_chart(fig2, use_container_width=True)
 
-hottest = filtered.loc[filtered["max_temp"].idxmax()]
-
-st.write(
-    f"역대 최고기온: {hottest['max_temp']}℃ ({int(hottest['year'])}년)"
-)
+st.write(filtered[[date_col, temp_col]].tail())
 ```
+
+st.subheader("원본 데이터")
+
+st.dataframe(df.head(20))
