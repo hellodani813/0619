@@ -74,3 +74,43 @@ except Exception as e:
         {e}
         """
     )
+# -----------------------------------
+# 날짜 검색
+# -----------------------------------
+
+st.subheader("📅 날짜 검색")
+
+# 날짜 컬럼 선택
+date_column = st.selectbox(
+    "날짜 컬럼 선택",
+    df.columns
+)
+
+search_date = st.date_input(
+    "조회할 날짜 선택"
+)
+
+try:
+    # 날짜형 변환
+    df[date_column] = pd.to_datetime(
+        df[date_column],
+        errors="coerce"
+    )
+
+    filtered_df = df[
+        df[date_column].dt.date == search_date
+    ]
+
+    st.write(
+        f"🔍 {search_date} 검색 결과: {len(filtered_df)}건"
+    )
+
+    st.dataframe(
+        filtered_df,
+        use_container_width=True
+    )
+
+except Exception:
+    st.warning(
+        "선택한 컬럼이 날짜 형식이 아닙니다."
+    )
