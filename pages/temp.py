@@ -3,186 +3,181 @@ import pandas as pd
 import plotly.express as px
 
 st.set_page_config(
-page_title="서울 기후 타임머신",
-page_icon="🌡️",
-layout="wide"
+    page_title="서울 날씨 타임머신",
+    page_icon="🌡️",
+    layout="wide"
 )
 
+st.title("🌡️ 서울 날씨 타임머신")
+st.markdown(
+    """
+오늘의 기온과 가장 비슷했던 과거의 날짜를 찾아보세요.
+"""
+)
+
+# ----------------------------
+# 데이터 로드
+# ----------------------------
 @st.cache_data
 def load_data():
-df = pd.read_csv(
-"ta_20260619190504.csv",
-encoding="utf-8-sig"
-)
+    df = pd.read_csv(
+        "ta_20260619190504(1).csv",
+        encoding="cp949"
+    )
 
-```
-df["날짜"] = (
-    df["날짜"]
-    .astype(str)
-    .str.strip()
-)
+    df.columns = [
+        "date",
+        "station",
+        "avg_temp",
+        "min_temp",
+        "max_temp"
+    ]
 
-df["날짜"] = pd.to_datetime(df["날짜"])
+    df["date"] = pd.to_datetime(df["date"])
 
-df["연도"] = df["날짜"].dt.year
-df["월"] = df["날짜"].dt.month
-df["일"] = df["날짜"].dt.day
+    return df
 
-return df
-```
 
 df = load_data()
 
-st.title("🌡️ 서울 기후 타임머신")
-st.caption("1907 ~ 2026 서울 기온 데이터")
+# ----------------------------
+# 날짜 선택
+# ----------------------------
+selected_date = st.date_input(
+    "날짜 선택",
+    value=df["date"].max().date()
+)
+
+selected_date = pd.to_datetime(selected_date)
+
+row = df[df["date"] == selected_date]
+
+if row.empty:
+    st.error("선택한 날짜 데이터가 없습니다.")
+    st.stop()
+
+target_temp = row.iloc[0]["avg_temp"]
+
+# ----------------------------
+# 현재 날짜 정보
+# ----------------------------
+st.subheader("선택한 날짜")
 
 col1, col2, col3 = st.columns(3)
 
 with col1:
-st.metric(
-"총 데이터 수",
-f"{len(df):,}"
-)
+    st.metric("평균기온", f"{target_temp:.1f}℃")
 
 with col2:
-st.metric(
-"시작 연도",
-int(df["연도"].min())
-)
+    st.metric("최저기온", f"{row.iloc[0]['min_temp']:.1f}℃")
 
 with col3:
-st.metric(
-"마지막 연도",
-int(df["연도"].max())
-)
+    st.metric("최고기온", f"{row.iloc[0]['max_temp']:.1f}℃")
 
-st.divider()
+# ----------------------------
+# 비슷한 날 찾기
+# ----------------------------
+similar_df = df.copy()
 
-st.header("📈 서울 평균기온 변화")
+similar_df["temp_diff"] = (
+    similar_df["avg_temp"] - target_temp
+).abs()
 
-yearly = (
-df.groupby("연도")["평균기온(℃)"]
-.mean()
-.reset_index()
-)
-
-fig = px.line(
-yearly,
-x="연도",
-y="평균기온(℃)",
-markers=True,
-title="1907~2026 연평균 기온"
-)
-
-st.plotly_chart(
-fig,
-use_container_width=True
-)
-
-st.divider()
-
-st.header("📅 특정 날짜 비교")
-
-month = st.selectbox(
-"월 선택",
-list(range(1, 13))
-)
-
-day = st.selectbox(
-"일 선택",
-list(range(1, 32))
-)
-
-filtered = df[
-(df["월"] == month)
-& (df["일"] == day)
+similar_df = similar_df[
+    similar_df["date"] != selected_date
 ]
 
-if len(filtered) > 0:
-
-```
-fig2 = px.line(
-    filtered,
-    x="연도",
-    y="평균기온(℃)",
-    title=f"{month}월 {day}일 기온 변화",
-    markers=True
+top10 = (
+    similar_df
+    .sort_values("temp_diff")
+    .head(10)
 )
 
-st.plotly_chart(
-    fig2,
+st.subheader("🔍 역사상 가장 비슷한 날 TOP 10")
+
+display_df = top10[
+    [
+        "date",
+        "avg_temp",
+        "min_temp",
+        "max_temp",
+        "temp_diff"
+    ]
+].copy()
+
+display_df.columns = [
+    "날짜",
+    "평균기온",
+    "최저기온",
+    "최고기온",
+    "차이"
+]
+
+st.dataframe(
+    display_df,
     use_container_width=True
 )
 
-hottest = filtered.loc[
-    filtered["최고기온(℃)"].idxmax()
-]
+# ----------------------------
+# 그래프
+# ----------------------------
+chart_df = top10.copy()
 
-coldest = filtered.loc[
-    filtered["최저기온(℃)"].idxmin()
-]
-
-col1, col2 = st.columns(2)
-
-with col1:
-    st.success(
-        f"""
-```
-
-역대 가장 더운 {month}월 {day}일
-
-연도: {int(hottest['연도'])}
-
-최고기온: {hottest['최고기온(℃)']}℃
-"""
+chart_df["label"] = (
+    chart_df["date"]
+    .dt.strftime("%Y-%m-%d")
 )
 
-```
-with col2:
-    st.info(
-        f"""
-```
-
-역대 가장 추운 {month}월 {day}일
-
-연도: {int(coldest['연도'])}
-
-최저기온: {coldest['최저기온(℃)']}℃
-"""
+fig = px.bar(
+    chart_df,
+    x="label",
+    y="avg_temp",
+    title="비슷한 날짜 평균기온 비교",
 )
 
-st.divider()
-
-st.header("🔥 역대 최고기온 TOP 10")
-
-top_hot = (
-df.sort_values(
-"최고기온(℃)",
-ascending=False
-)
-[["날짜", "최고기온(℃)"]]
-.head(10)
+fig.add_hline(
+    y=target_temp,
+    line_dash="dash",
+    annotation_text=f"선택 날짜 ({target_temp:.1f}℃)"
 )
 
-st.dataframe(
-top_hot,
-use_container_width=True
+st.plotly_chart(
+    fig,
+    use_container_width=True
 )
 
-st.divider()
+# ----------------------------
+# 가장 비슷한 날
+# ----------------------------
+best_match = top10.iloc[0]
 
-st.header("❄️ 역대 최저기온 TOP 10")
+st.subheader("🏆 가장 비슷했던 날")
 
-top_cold = (
-df.sort_values(
-"최저기온(℃)",
-ascending=True
+st.success(
+    f"""
+    {best_match['date'].strftime('%Y-%m-%d')}
+
+    평균기온: {best_match['avg_temp']:.1f}℃
+    
+    차이: {best_match['temp_diff']:.2f}℃
+    """
 )
-[["날짜", "최저기온(℃)"]]
-.head(10)
+
+# ----------------------------
+# 통계
+# ----------------------------
+st.subheader("📊 선택 기온의 위치")
+
+percentile = (
+    (df["avg_temp"] < target_temp).mean()
+    * 100
 )
 
-st.dataframe(
-top_cold,
-use_container_width=True
+st.info(
+    f"""
+    평균기온 {target_temp:.1f}℃ 는
+
+    1907~2026 서울 관측 데이터 기준
+    상위 {100-percentile:.1f}% 수준입니다.
+    """
 )
