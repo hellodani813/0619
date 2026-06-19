@@ -13,7 +13,7 @@ st.markdown("원하는 날짜를 선택하여 과거 서울의 기온 기록을 
 @st.cache_data
 def load_data():
     # 데이터 읽기 (인코딩 처리)
-    df = pd.read_csv("ta_20260619190504.csv", encoding="cp949")
+    df = pd.read_csv("ta_20260619190504.csv")
     
     # 컬럼명 공백 제거
     df.columns = df.columns.str.strip()
