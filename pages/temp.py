@@ -21,7 +21,7 @@ st.markdown(
 @st.cache_data
 def load_data():
     df = pd.read_csv(
-        "ta_20260619190504(1).csv",
+        "ta_20260619190504.csv",
         encoding="cp949"
     )
 
